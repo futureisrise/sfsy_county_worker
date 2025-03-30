@@ -82,11 +82,11 @@ async function fetchPinterestData(env) {
 }
 
 async function fetchXData(env) {
-    const url = `https://api.twitter.com/2/users/${env.TWITTER_USER_ID}?user.fields=public_metrics`;
+    const url = `https://api.twitter.com/2/users/${env.X_USER_ID}?user.fields=public_metrics`;
 
     try {
         const response = await fetch(url, {
-            headers: { Authorization: `Bearer ${env.TWITTER_BEARER_TOKEN}` },
+            headers: { Authorization: `Bearer ${env.X_BEARER_TOKEN}` },
         });
 
         if (!response.ok) {
