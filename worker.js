@@ -4,8 +4,7 @@ export default {
     },
 };
 
-const AVAILABLE_LIST = ["facebook", "instagram", "youtube", "tiktok"];
-const CACHE_TTL = 60;
+const AVAILABLE_LIST = ["facebook", "instagram", "youtube", "tiktok", "pinterest", "x", "telegram"];
 
 async function fetchFacebookData(env) {
     const url = `https://graph.facebook.com/v22.0/${env.FACEBOOK_GROUP_ID}?` +
@@ -62,6 +61,64 @@ async function fetchTiktokData(env) {
     }
 }
 
+async function fetchPinterestData(env) {
+    const url = "https://api.pinterest.com/v5/user_account";
+
+    try {
+        const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${env.PINTEREST_ACCESS_TOKEN}` },
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return { subscribers: data.follower_count || 0 };
+    } catch (error) {
+        console.error("❌ Error fetching Pinterest data:", error);
+        return { subscribers: 0 };
+    }
+}
+
+async function fetchXData(env) {
+    const url = `https://api.twitter.com/2/users/${env.TWITTER_USER_ID}?user.fields=public_metrics`;
+
+    try {
+        const response = await fetch(url, {
+            headers: { Authorization: `Bearer ${env.TWITTER_BEARER_TOKEN}` },
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return { subscribers: data.data.public_metrics.followers_count || 0 };
+    } catch (error) {
+        console.error("❌ Error fetching Twitter data:", error);
+        return { subscribers: 0 };
+    }
+}
+
+async function fetchTelegramData(env) {
+    const url = `https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/getChatMembersCount?chat_id=${env.TELEGRAM_CHAT_ID}`;
+
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        if (!data.ok) {
+            throw new Error("Failed to fetch Telegram data");
+        }
+
+        return { subscribers: data.result || 0 };
+    } catch (error) {
+        console.error("❌ Error fetching Telegram data:", error);
+        return { subscribers: 0 };
+    }
+}
+
 async function fetchData(url, platform) {
     try {
         const response = await fetch(url, { headers: getHeaders() });
@@ -83,15 +140,6 @@ async function fetchData(url, platform) {
     }
 }
 
-async function getCachedData(env, key) {
-    const cached = await env.KV_SOCIAL_STATS.get(key, { type: "json" });
-    return cached || null;
-}
-
-async function setCachedData(env, key, data) {
-    await env.KV_SOCIAL_STATS.put(key, JSON.stringify(data), { expirationTtl: CACHE_TTL });
-}
-
 async function handleRequest(request, env) {
     const url = new URL(request.url);
     const platform = url.searchParams.get("platform")?.toLowerCase();
@@ -101,25 +149,14 @@ async function handleRequest(request, env) {
     }
 
     if (platform && AVAILABLE_LIST.includes(platform)) {
-        const cacheKey = `stats_${platform}`;
-
-        const cachedData = await getCachedData(env, cacheKey);
-        if (cachedData) {
-            console.log(`✅ Serving cached ${platform} data`);
-            return new Response(JSON.stringify(cachedData), {
-                status: 200,
-                headers: { ...getCorsHeaders(), "Content-Type": "application/json" },
-            });
-        }
-
         let data = {};
         if (platform === "facebook") data = await fetchFacebookData(env);
         else if (platform === "instagram") data = await fetchInstagramData(env);
         else if (platform === "youtube") data = await fetchYoutubeData(env);
         else if (platform === "tiktok") data = await fetchTiktokData(env);
-
-        // Зберігаємо дані у кеш
-        await setCachedData(env, cacheKey, data);
+        else if (platform === "pinterest") data = await fetchPinterestData(env);
+        else if (platform === "twitter") data = await fetchXData(env);
+        else if (platform === "telegram") data = await fetchTelegramData(env);
 
         return new Response(JSON.stringify(data), {
             status: 200,
