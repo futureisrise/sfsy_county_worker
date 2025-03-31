@@ -185,4 +185,3 @@ function getHeaders() {
         "Accept-Language": "en",
     };
 }
-
