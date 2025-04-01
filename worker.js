@@ -82,7 +82,7 @@ async function fetchPinterestData(env) {
 }
 
 async function fetchXData(env) {
-    const url = `https://api.twitter.com/2/users/${env.X_USER_ID}?user.fields=public_metrics`;
+    const url = `https://api.twitter.com/2/users/by/username/${env.X_USER_ID}?user.fields=public_metrics`;
 
     try {
         const response = await fetch(url, {
@@ -155,7 +155,7 @@ async function handleRequest(request, env) {
         else if (platform === "youtube") data = await fetchYoutubeData(env);
         else if (platform === "tiktok") data = await fetchTiktokData(env);
         else if (platform === "pinterest") data = await fetchPinterestData(env);
-        else if (platform === "twitter") data = await fetchXData(env);
+        else if (platform === "x") data = await fetchXData(env);
         else if (platform === "telegram") data = await fetchTelegramData(env);
 
         return new Response(JSON.stringify(data), {
