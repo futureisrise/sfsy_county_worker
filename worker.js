@@ -7,7 +7,7 @@ export default {
 const AVAILABLE_LIST = ["facebook", "instagram", "youtube", "tiktok", "pinterest", "x", "telegram"];
 
 async function fetchFacebookData(env) {
-    const url = `https://graph.facebook.com/v22.0/${env.FACEBOOK_GROUP_ID}?` +
+    const url = `https://graph.facebook.com/v22.0/${env.FACEBOOK_PAGE_ID}?` +
         new URLSearchParams({
             access_token: env.FACEBOOK_ACCESS_TOKEN,
             fields: "followers_count",
