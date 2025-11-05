@@ -10,7 +10,7 @@ async function fetchFacebookData(env) {
     const url = `https://graph.facebook.com/v22.0/${env.FACEBOOK_GROUP_ID}?` +
         new URLSearchParams({
             access_token: env.FACEBOOK_ACCESS_TOKEN,
-            fields: "member_count",
+            fields: "followers_count",
         }).toString();
 
     return fetchData(url, "Facebook");
