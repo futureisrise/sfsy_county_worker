@@ -171,6 +171,11 @@ async function handleRequest(request, env) {
         return new Response(null, { status: 200, headers: getCorsHeaders() });
     }
 
+    if (url.searchParams.get("action") === "refresh") {
+      await runCronTasks(env);
+      return new Response(JSON.stringify({ ok: true }), { headers: { "content-type": "application/json" } });
+    }
+  
     if (platform && AVAILABLE_LIST.includes(platform)) {
         let data = {};
         if (platform === "facebook") data = await fetchFacebookData(env);
