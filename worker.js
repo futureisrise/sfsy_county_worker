@@ -1,25 +1,48 @@
+// export default {
+//     async fetch(request, env) {
+//         return handleRequest(request, env);
+//     },
+// };
+
+// расширяем экспорт — добавляем обработчик Cron
 export default {
-    async fetch(request, env) {
-        return handleRequest(request, env);
-    },
+  async fetch(request, env) {
+    return handleRequest(request, env);
+  },
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runCronTasks(env));
+  },
 };
+
+// общий раннер
+async function runCronTasks(env) {
+  await Promise.allSettled([
+    refreshInstagramToken(env),
+    refreshFacebookToken(env),
+  ]);
+}
 
 const AVAILABLE_LIST = ["facebook", "instagram", "youtube", "tiktok", "pinterest", "x", "telegram"];
 
+
+
 async function fetchFacebookData(env) {
+    const token = await getToken(env.TOKENS_KV, "FACEBOOK_ACCESS_TOKEN", env.FACEBOOK_ACCESS_TOKEN);
     const url = `https://graph.facebook.com/v22.0/${env.FACEBOOK_PAGE_ID}?` +
         new URLSearchParams({
-            access_token: env.FACEBOOK_ACCESS_TOKEN,
+            access_token: token,
             fields: "followers_count",
         }).toString();
-
+    
     return fetchData(url, "Facebook");
 }
 
 async function fetchInstagramData(env) {
+    const token = await getToken(env.TOKENS_KV, "INSTAGRAM_ACCESS_TOKEN", env.INSTAGRAM_ACCESS_TOKEN);
+    
     const url = `https://graph.instagram.com/v17.0/${env.INSTAGRAM_PAGE_ID}?` +
         new URLSearchParams({
-            access_token: env.INSTAGRAM_ACCESS_TOKEN,
+            access_token: token,
             fields: "followers_count",
         }).toString();
 
@@ -186,3 +209,59 @@ function getHeaders() {
     };
 }
 
+async function getToken(kv, key, fallback) {
+  const v = await kv.get(key);
+  return (v || fallback || "").trim();
+}
+
+async function setToken(kv, key, value) {
+  if (!value) return;
+  await kv.put(key, value, { expirationTtl: 60 * 24 * 60 * 60 }); // 60 дней на всякий
+}
+
+
+// === Instagram: продление long-lived токена (rolling 60 days) ===
+async function refreshInstagramToken(env) {
+  const current = await getToken(env.TOKENS_KV, "INSTAGRAM_ACCESS_TOKEN", env.INSTAGRAM_ACCESS_TOKEN);
+  if (!current || !current.startsWith("IGQVJ")) {
+    // нет токена или это не long-lived IG — пропускаем
+    return;
+  }
+  const url = `https://graph.instagram.com/refresh_access_token?` + new URLSearchParams({
+    grant_type: "ig_refresh_token",
+    access_token: current,
+  });
+  const res = await fetch(url);
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (data.access_token) {
+    await setToken(env.TOKENS_KV, "INSTAGRAM_ACCESS_TOKEN", data.access_token);
+    await env.TOKENS_KV.put("INSTAGRAM_UPDATED_AT", String(Date.now()));
+    console.log("✅ IG token refreshed");
+  } else {
+    console.error("❌ IG refresh error:", data);
+  }
+}
+
+// === Facebook: переобмен long-lived на новый long-lived (каждые ~45 дней) ===
+async function refreshFacebookToken(env) {
+  const current = await getToken(env.TOKENS_KV, "FACEBOOK_ACCESS_TOKEN", env.FACEBOOK_ACCESS_TOKEN);
+  if (!current) return;
+
+  const url = `https://graph.facebook.com/v22.0/oauth/access_token?` + new URLSearchParams({
+    grant_type: "fb_exchange_token",
+    client_id: env.FACEBOOK_APP_ID,
+    client_secret: env.FACEBOOK_APP_SECRET,
+    fb_exchange_token: current,
+  });
+  const res = await fetch(url);
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (data.access_token) {
+    await setToken(env.TOKENS_KV, "FACEBOOK_ACCESS_TOKEN", data.access_token);
+    await env.TOKENS_KV.put("FACEBOOK_UPDATED_AT", String(Date.now()));
+    console.log("✅ FB token refreshed");
+  } else {
+    console.error("❌ FB refresh error:", data);
+  }
+}
